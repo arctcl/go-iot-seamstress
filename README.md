@@ -18,3 +18,5 @@ Performance Metrics: Real-time tracking of individual sewing speeds and efficien
 Shop Floor Load: Live visualization of current factory capacity and workload utilization in percentages.
 Production Planning: Dynamic data and statistics to optimize scheduling and detect processing bottlenecks instantly.
 Leaderboards: Live "Top Seamstresses" charts to drive motivation and simplify piecework payroll calculations.
+
+Чек - /TurboPlata/Проект сделки*.docx
