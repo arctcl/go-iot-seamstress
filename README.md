@@ -1,22 +1,19 @@
 # go-iot-seamstress
 ![screen](/screen.png)
-Archived Go + MQTT solution for piecework payroll control and end-to-end work-in-progress (WIP) tracking in a garment factory, from cut pieces to finished goods.
 
-Zero-button hardware: Minimal action required from shop-floor workers.
+Проект заморожен на стадии готового MVP для показа из-за смены направления в менеджменте предприятия
 
-Single SQLite DB: Lightweight, embedded, and easy to deploy.
+Архивное Go + MQTT решение для сдельной оплаты труда и сквозного учета незавершенного производства (WIP) на швейной фабрике — от кроя до готовой продукции.
 
-User-friendly Web UI: Total control and beautiful stats for the production manager.
-
-Core Workflow:
-Order Creation: The Production Manager creates a manufacturing order in the web dashboard.
-Cutting & Batching: The cutter issues a batch (a box with N number of pieces), prints a routing sheet (runner) with unique barcodes, and launches it onto the shop floor.
-Operation Tracking: A seamstress scans her ID badge, scans the specific operation barcode, performs the task, and clicks "Ready" on her terminal (featuring a fact-check mechanism to prevent false entries).
-Quality Control (QC/OTK): The QC inspector scans any barcode from the routing sheet and clicks either "Good" or "Not Good".If "Good": The batch is marked as finished.If "Not Good": The batch is rerouted back to the floor via the shop dispatcher for rework. (or create new box)
-Real-Time Analytics Dashboard:
-Performance Metrics: Real-time tracking of individual sewing speeds and efficiency for each seamstress.
-Shop Floor Load: Live visualization of current factory capacity and workload utilization in percentages.
-Production Planning: Dynamic data and statistics to optimize scheduling and detect processing bottlenecks instantly.
-Leaderboards: Live "Top Seamstresses" charts to drive motivation and simplify piecework payroll calculations.
+Zero-button оборудование: минимальные действия от рабочих в цеху. 
+Единая база данных SQLite: легкая, встроенная и простая в развертывании. 
+Удобный веб-интерфейс: полный контроль и наглядная статистика для начальника производства.Основной рабочий процесс
+Создание заказа: начальник производства создает заказ на производство в веб-панели управления.
+Крой и комплектование: закройщик формирует пачку (коробку с N-ным количеством деталей), распечатывает маршрутный лист (бегунок) с уникальными штрихкодами и отправляет её в цех.
+Отслеживание операций: швея сканирует свой бейдж (ID), сканирует штрихкод конкретной операции, выполняет работу и сканирует код «Готово» на своем столе (предусмотрен механизм проверки фактов для предотвращения ложных вводов).
+Контроль качества (ОТК): контролер ОТК сканирует любой штрихкод с маршрутного листа и нажимает либо «Брак», либо «Годно».
+Если «Годно»: пачка отмечается как готовая.Если «Брак»: диспетчер цеха перенаправляет пачку обратно на доработку (или формирует новую коробку).
+Аналитическая панель в реальном времениПоказатели эффективности: отслеживание скорости и эффективности работы каждой швеи в режиме реального времени.
+Загрузка цеха: живая визуализация текущей загрузки фабрики и использования мощностей в процентах.Планирование производства: динамические данные и статистика для оптимизации графиков и мгновенного обнаружения «узких мест» в обработке.Доски лидеров: живые графики «Лучшие швеи» для повышения мотивации и упрощения расчета сдельной заработной платы.
 
 Чек - /TurboPlata/Проект сделки*.docx
