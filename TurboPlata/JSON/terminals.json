@@ -1,0 +1,12 @@
+{
+  "__пример": "Привязка ESP32-сканеров к рабочим местам и ПК. pc_hostname = hostname компа, который отдаёт PC-агент (GO/PC/). Браузер компа делает fetch('http://127.0.0.1:9999') и получает свой hostname, затем WebSocket → сервер.",
+  "__демо_отк_сканер":     { "id": "esp32-otk-1", "pc_hostname": "COMP-OTK-1",     "role": "otk",     "active": true },
+  "__демо_выдача_сканер":  { "id": "esp32-vydacha-1", "pc_hostname": "COMP-VYDACHA-1", "role": "vydacha", "active": true },
+  "__демо_стол_швеи":      { "id": "esp32-table-1",   "pc_hostname": null,             "role": "table",   "active": true },
+  "__демо_мастер_пк":      { "id": "web-master",      "pc_hostname": "COMP-MASTER-1",  "role": "master",  "active": true },
+
+  "web_terminal": {
+    "enabled": true,
+    "port": 8081
+  }
+}

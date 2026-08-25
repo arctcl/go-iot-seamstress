@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Маршрутный лист — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+<style id="routeStyles">
+    src: url(data:font/ttf;base64,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) format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+        @page { size: A4 landscape; margin: 8mm; }
+        @media print { body { margin:0; padding:0; } .no-print { display:none!important; } .route-page { page-break-after:always; } }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background:#fff; color:#000; margin:0; padding:0; }
+        .route-page { padding: 8mm; }
+        .route-top { font-size: 11px; margin-bottom: 4mm; display: flex; justify-content: space-between; border-bottom: 1.5px solid #000; padding-bottom: 2mm; }
+        .route-top div { font-weight: 600; }
+        .route-grid { display: flex; gap: 6mm; }
+        .route-col { flex: 1; min-width: 0; }
+        .op-entry { margin-bottom: 3mm; break-inside: avoid; }
+        .op-barcode svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+        .op-text { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; text-align: center; margin-top: 0.5mm; }
+    </style>
+</head>
+<body>
+    <div class="no-print container" style="max-width:500px;">
+        <div class="panel">
+            <h2>🖨️ Печать маршрутного листа</h2>
+            <div class="flex"><input type="text" id="boxID" placeholder="Номер коробки" style="flex:1;"><button class="btn-primary" onclick="loadRoute()">🔍 Загрузить</button></div>
+            <div class="flex mt-8" style="align-items:center;">
+                <span style="font-size:13px;color:#666;margin-right:8px;">Формат:</span>
+                <button class="btn-sm" id="modeBAR" onclick="setMode('BAR')" style="background:#e0e0e0;color:#333;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;">BAR</button>
+                <button class="btn-sm" id="modeQR" onclick="setMode('QR')" style="background:#4a6cf7;color:#fff;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;">QR</button>
+                <span style="margin-left:12px;"><button class="btn-success no-print" onclick="window.print()" id="printBtn" style="display:none;">🖨️ Печать</button></span>
+                <button class="btn-primary no-print" onclick="history.back()" id="backBtn" style="display:none;">🔙 Назад</button>
+            </div>
+            <div id="error" style="color:#dc3545;margin-top:8px;display:none;"></div>
+        </div>
+    </div>
+    <div id="routeContainer"></div>
+    <script src="/static/app.js"></script>
+    <script src="/static/barcodeengine.js"></script>
+    <script src="/static/qrcode.min.js"></script>
+    <script>
+        let barcodeMode = 'QR';
+        const urlParams = new URLSearchParams(window.location.search);
+        const boxIDfromURL = urlParams.get('id');
+        if (boxIDfromURL) { document.getElementById('boxID').value = boxIDfromURL; loadRoute(); }
+
+        function setMode(mode) {
+            barcodeMode = mode;
+            document.getElementById('modeBAR').style.background = mode === 'BAR' ? '#4a6cf7' : '#e0e0e0';
+            document.getElementById('modeBAR').style.color = mode === 'BAR' ? '#fff' : '#333';
+            document.getElementById('modeQR').style.background = mode === 'QR' ? '#4a6cf7' : '#e0e0e0';
+            document.getElementById('modeQR').style.color = mode === 'QR' ? '#fff' : '#333';
+            if (document.getElementById('routeContainer').children.length > 0) loadRoute();
+        }
+
+        function generateBarcodeSVG(text) {
+            if (barcodeMode === 'QR') {
+                return qrToSVG(text.replace(/\*/g, ''));
+            }
+            return TurboBarcode.svg(text, { height: 80, narrow: 1.2, wide: 2.5 });
+        }
+
+        function qrToSVG(text) {
+            const div = document.createElement('div');
+            new QRCode(div, { text: text, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.H });
+            const canvas = div.querySelector('canvas');
+            if (canvas) {
+                return '<img src="' + canvas.toDataURL('image/png') + '" style="width:120px;height:120px;display:block;margin:0 auto;" alt="QR">';
+            }
+            const img = div.querySelector('img');
+            if (img && img.src) {
+                return '<img src="' + img.src + '" style="width:120px;height:120px;display:block;margin:0 auto;" alt="QR">';
+            }
+            return '<div style="width:120px;height:120px;background:#eee;text-align:center;line-height:120px;font-size:10px;color:#666;">QR error</div>';
+        }
+
+        async function loadRoute() {
+            let boxID = document.getElementById('boxID').value.trim();
+            if (!boxID) return;
+            document.getElementById('error').style.display = 'none';
+
+            const brakMatch = boxID.match(/^(?:BRAK#?)?(\d+)$/i);
+            if (brakMatch) boxID = brakMatch[1];
+
+            const data = await apiGet('/api/otk/box?barcode=' + boxID + '-X');
+            if (data.status !== 'ok') {
+                const el = document.getElementById('error');
+                el.textContent = 'Коробка не найдена';
+                el.style.display = 'block';
+                return;
+            }
+
+            const box = data.data;
+            const container = document.getElementById('routeContainer');
+            const isBrak = box.статус === 'брак';
+
+            // Код коробки из БД: zkz00001bx00005
+            const boxCode = box.код || (box.код_заказа || 'zkz' + String(box.ид_заказа).padStart(5, '0')) + (isBrak ? 'br' : 'bx') + String(box.номер_в_заказе || box.ид_коробки).padStart(5, '0');
+            const routeNum = boxCode;
+
+            const operations = box.операции || [];
+            const perCol = Math.ceil(operations.length / 3);
+            let cols = [[], [], []];
+            operations.forEach((op, i) => {
+                const colIdx = Math.floor(i / perCol);
+                if (colIdx < 3) cols[colIdx].push(op);
+            });
+
+            let html = `<div class="route-page">
+                <div class="route-top">
+                    <div>Маршрутный лист — ${routeNum}</div>
+                    <div>Заказ: ${box.код_заказа || ('zkz' + String(box.ид_заказа).padStart(5, '0'))} — ${box.изделие}</div>
+                    <div>Коробка: ${boxCode} | ${box.количество} шт.</div>
+                </div>
+                <div class="route-grid">`;
+
+            cols.forEach(col => {
+                html += `<div class="route-col">`;
+                col.forEach((op, idx) => {
+                    // Код операции из БД: zkz00001bx00005op00003
+                    const opCode = op.код || (boxCode + 'op' + String(op.шаг || (idx + 1)).padStart(5, '0'));
+                    const barcodeTxt = '*' + opCode + '*';
+                    const barcodeSVG = generateBarcodeSVG(barcodeTxt);
+                    const stepNum = op.шаг || (idx + 1);
+                    html += `<div class="op-entry">
+                        <div class="op-barcode">${barcodeSVG}</div>
+                        <div class="op-text">${stepNum}. ${op.название}</div>
+                    </div>`;
+                });
+                html += `</div>`;
+            });
+
+            html += `</div></div>`;
+            container.innerHTML = html;
+            document.getElementById('printBtn').style.display = 'inline-block';
+            if (boxIDfromURL) setTimeout(() => window.print(), 500);
+        }
+    </script>
+</body>
+</html>

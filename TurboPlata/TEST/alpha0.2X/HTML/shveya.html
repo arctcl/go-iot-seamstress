@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моя смена — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="flex" style="justify-content:space-between;">
+            <h1>🧵 Моя смена</h1>
+            <button class="btn-danger" onclick="logout()">🚪 Выход</button>
+        </div>
+
+        <div class="panel text-center" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;">
+            <div style="font-size:14px;opacity:0.9;" id="workerName">—</div>
+            <div style="font-size:36px;font-weight:700;margin:8px 0;" id="todayTotal">0 ₽</div>
+            <div style="font-size:13px;opacity:0.8;">за сегодня</div>
+        </div>
+
+        <div class="panel">
+            <h2>📋 Операции за сегодня</h2>
+            <table id="operationsTable">
+                <thead><tr><th>Время</th><th>Коробка</th><th>Операция</th><th>Норма</th><th>Факт</th><th>Начислено</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <div id="noData" style="text-align:center;padding:20px;color:#999;display:none;">За сегодня операций нет</div>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script>
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await checkSession();
+            if (!currentUser) return;
+            document.getElementById('workerName').textContent = '👤 ' + (currentUser.fio || 'Швея');
+            loadMyStats();
+        });
+
+        async function loadMyStats() {
+            const data = await apiGet('/api/worker/stats');
+            if (data.status !== 'ok' || !data.data) {
+                document.getElementById('noData').style.display = 'block';
+                return;
+            }
+            document.getElementById('todayTotal').textContent = (data.data.total || 0).toFixed(2) + ' ₽';
+
+            const tbody = document.querySelector('#operationsTable tbody');
+            tbody.innerHTML = '';
+            const ops = data.data.operations || [];
+            if (ops.length === 0) {
+                document.getElementById('noData').style.display = 'block';
+                return;
+            }
+            ops.forEach(op => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${op.время || '-'}</td><td>#${op.ид_коробки || '-'}</td>
+                    <td>${op.название}</td><td>${op.норма_сек || 0}с</td>
+                    <td>${op.факт_сек || 0}с</td>
+                    <td><strong>${(op.начислено || 0).toFixed(2)} ₽</strong></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Автообновление каждые 3 секунды
+        setInterval(loadMyStats, 3000);
+    </script>
+</body>
+</html>

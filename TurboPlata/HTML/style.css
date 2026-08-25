@@ -1,0 +1,134 @@
+/* TurboPlata — общие стили */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    background: #f0f2f5;
+    padding: 16px;
+    color: #333;
+}
+.container { max-width: 1000px; margin: 0 auto; }
+h1 { color: #1a1a2e; margin: 16px 0; font-size: 24px; }
+h2 { color: #444; margin: 16px 0 12px; font-size: 18px; font-weight: 600; }
+.panel {
+    background: #fff;
+    padding: 20px;
+    margin: 12px 0;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.form-group { margin: 14px 0; }
+label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #333; }
+input, textarea, select {
+    width: 100%; padding: 12px; font-size: 16px;
+    border: 2px solid #ddd; border-radius: 6px;
+    transition: border-color 0.2s;
+    background: #fff;
+}
+input:focus, textarea:focus, select:focus {
+    outline: none; border-color: #4a6cf7;
+    box-shadow: 0 0 0 3px rgba(74,108,247,0.1);
+}
+textarea { font-family: 'Monaco', 'Menlo', monospace; resize: vertical; }
+button {
+    padding: 11px 20px; border: none; border-radius: 6px;
+    cursor: pointer; font-size: 14px; font-weight: 600;
+    transition: background 0.2s, transform 0.1s;
+}
+button:active { transform: scale(0.97); }
+.btn-primary { background: #4a6cf7; color: #fff; }
+.btn-primary:hover { background: #3b5de7; }
+.btn-success { background: #28a745; color: #fff; }
+.btn-success:hover { background: #218838; }
+.btn-danger { background: #dc3545; color: #fff; }
+.btn-danger:hover { background: #c82333; }
+.btn-warning { background: #ffc107; color: #333; }
+.btn-warning:hover { background: #e0a800; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+table {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-size: 14px;
+}
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+th { background: #f8f9fa; font-weight: 600; color: #555; }
+tr:hover td { background: #f5f7ff; }
+.success { color: #28a745; font-weight: 600; }
+.error, .badge-error { color: #dc3545; font-weight: 600; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-ok { background: #d4edda; color: #155724; }
+.badge-warn { background: #fff3cd; color: #856404; }
+.badge-error { background: #f8d7da; color: #721c24; }
+.block { display: block; margin: 8px 0; }
+.flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.text-center { text-align: center; }
+
+/* Скан-бокс */
+.scanner-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px; border-radius: 12px; color: #fff; margin: 12px 0;
+}
+.scanner-box input {
+    background: rgba(255,255,255,0.95); border: none; font-size: 20px;
+    text-align: center; letter-spacing: 2px;
+}
+
+/* Сворачиваемые панели */
+.panel-collapsible .panel-header {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+.panel-collapsible .panel-header:hover {
+    opacity: 0.8;
+}
+.panel-collapsible .panel-header .toggle-icon {
+    font-size: 14px;
+    color: #999;
+    transition: transform 0.2s;
+}
+.panel-collapsible .panel-header.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+.panel-collapsible .panel-body {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+/* Drag-drop для строк таблицы */
+tr.sortable-row {
+    cursor: grab;
+}
+tr.sortable-row:active {
+    cursor: grabbing;
+    opacity: 0.6;
+}
+tr.sortable-row.dragging {
+    opacity: 0.4;
+}
+tr.sortable-row.drag-over {
+    border-top: 3px solid #4a6cf7;
+}
+.box-card {
+    background: #fff; padding: 16px; margin: 10px 0;
+    border-radius: 8px; border-left: 4px solid #4a6cf7;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.box-card.ok { border-left-color: #28a745; }
+.box-card.warn { border-left-color: #ffc107; }
+.box-card.error { border-left-color: #dc3545; }
+.box-card .title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+.box-card .meta { font-size: 13px; color: #666; margin-bottom: 8px; }
+
+@media (max-width: 480px) {
+    body { padding: 10px; }
+    h1 { font-size: 20px; }
+    .panel { padding: 14px; }
+    button { width: 100%; margin: 4px 0; }
+    .flex { flex-direction: column; }
+}

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Выдача — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="flex" style="justify-content:space-between;">
+            <h1>📦 Выдача материалов</h1>
+            <button class="btn-danger" onclick="logout()">🚪 Выход</button>
+        </div>
+
+        <!-- Окно сканера -->
+        <div class="scanner-box">
+            <label style="font-weight:600;display:block;margin-bottom:8px;">📷 Сканирование</label>
+            <input type="text" id="scanInput" placeholder="USER_ / КОРОБКА-ОПЕРАЦИЯ / DONE" autofocus>
+            <div id="scanResult" style="margin-top:8px;font-weight:600;display:none;"></div>
+        </div>
+
+        <div class="panel">
+            <h2>📋 Доступные заказы</h2>
+            <table id="ordersTable">
+                <thead><tr><th>ID</th><th>Изделие</th><th>План</th><th>Сделано</th><th>%</th><th>Действие</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="panel" id="createBoxPanel" style="display:none;">
+            <h2>📦 Создать коробку для заказа #<span id="createBoxOrderID"></span></h2>
+            <div class="flex">
+                <input type="number" id="createBoxQty" placeholder="Количество" min="1" style="flex:1;">
+                <button class="btn-success" onclick="doCreateBox()">✅ Создать</button>
+                <button class="btn-danger" onclick="cancelCreateBox()">✕ Отмена</button>
+            </div>
+            <div id="createBoxError" style="color:#dc3545;margin-top:8px;display:none;"></div>
+        </div>
+
+        <div class="panel">
+            <h2>📦 Активные коробки</h2>
+            <table id="boxesTable">
+                <thead><tr><th>#</th><th>Изделие</th><th>Кол-во</th><th>Статус</th><th>Действия</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script>
+        let currentUser = null;
+        let ws = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await checkSession();
+            loadOrders();
+            loadBoxes();
+            createBarcodeInput('#scanInput', '#scanResult', {
+                onUser: (barcode, fio, role) => {
+                    console.log('👤', fio, role);
+                },
+                onDone: (res) => { loadBoxes(); },
+                onScan: (msg) => { loadBoxes(); }
+            });
+            ws = await connectWS(msg => {
+                if (msg.type === 'scan_result') {
+                    const el = document.getElementById('scanResult');
+                    el.style.display = 'block';
+                    el.className = 'success';
+                    el.textContent = '📡 Скан: ' + (msg.payload.message || JSON.stringify(msg.payload));
+                    loadBoxes();
+                }
+            });
+            // Автообновление каждые 3 секунды
+            setInterval(() => { loadBoxes(); loadOrders(); }, 3000);
+        });
+
+        async function loadOrders() {
+            const data = await apiGet('/api/orders/stats');
+            const tbody = document.querySelector('#ordersTable tbody');
+            tbody.innerHTML = '';
+            if (!data.data) return;
+            data.data.forEach(o => {
+                const tr = document.createElement('tr');
+                const pct = (o.процент || 0).toFixed(1);
+                tr.innerHTML = `<td>${o.ид}</td><td>${o.название}</td><td>${o.количество_план}</td>
+                    <td><b>${o.сделано}</b></td>
+                    <td>${pct}%</td>
+                    <td><button class="btn-success" onclick="showCreateBox(${o.ид})">📦 Создать коробку</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        let createBoxOrderID = null;
+
+        function showCreateBox(orderID) {
+            createBoxOrderID = orderID;
+            document.getElementById('createBoxOrderID').textContent = orderID;
+            document.getElementById('createBoxQty').value = '25';
+            document.getElementById('createBoxError').style.display = 'none';
+            document.getElementById('createBoxPanel').style.display = 'block';
+            document.getElementById('createBoxQty').focus();
+        }
+
+        function cancelCreateBox() {
+            document.getElementById('createBoxPanel').style.display = 'none';
+            createBoxOrderID = null;
+        }
+
+        async function doCreateBox() {
+            if (!createBoxOrderID) return;
+            const qty = parseInt(document.getElementById('createBoxQty').value);
+            if (!qty || qty < 1) {
+                document.getElementById('createBoxError').textContent = 'Укажите количество';
+                document.getElementById('createBoxError').style.display = 'block';
+                return;
+            }
+            const res = await apiPost('/api/boxes', { ид_заказа: createBoxOrderID, количество: qty });
+            if (res.status === 'ok') {
+                const boxID = res.data.ид_коробки;
+                cancelCreateBox();
+                if (confirm('✅ Коробка #' + boxID + ' создана. Напечатать маршрутник?')) {
+                    window.open('/print?id=' + boxID, '_blank');
+                }
+                loadOrders();
+                loadBoxes();
+            } else {
+                document.getElementById('createBoxError').textContent = '❌ ' + res.message;
+                document.getElementById('createBoxError').style.display = 'block';
+            }
+        }
+
+        async function loadBoxes() {
+            const data = await apiGet('/api/boxes');
+            const tbody = document.querySelector('#boxesTable tbody');
+            tbody.innerHTML = '';
+            if (!data.data || data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">Нет активных коробок</td></tr>';
+                return;
+            }
+            data.data.forEach(b => {
+                const statusBadge = b.статус === 'в_работе' ? 'badge-warn' : (b.статус === 'брак' ? 'badge-error' : 'badge-ok');
+                const tr = document.createElement('tr');
+                const editable = !b.операции_начаты && b.статус === 'в_работе';
+                tr.innerHTML = `<td>#${b.ид}</td><td>${b.изделие}</td><td>${b.количество}</td>
+                    <td><span class="badge ${statusBadge}">${b.статус}</span></td>
+                    <td>
+                        ${editable ? `<button class="btn-primary" onclick="editBox(${b.ид})">✏️</button>
+                        <button class="btn-danger" onclick="deleteBox(${b.ид})">🗑️</button>` : ''}
+                        <button class="btn-primary" onclick="window.open('/print?id=${b.ид}','_blank')">🖨️</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function editBox(boxID) {
+            const newQty = prompt('Новое количество для коробки #' + boxID + ':', '25');
+            if (!newQty) return;
+            const res = await apiPut('/api/boxes', { ид: boxID, количество: parseInt(newQty) });
+            if (res.status === 'ok') {
+                loadBoxes();
+            } else {
+                alert('❌ ' + res.message);
+            }
+        }
+
+        async function deleteBox(boxID) {
+            if (!confirm('Удалить коробку #' + boxID + '?')) return;
+            const res = await apiDel('/api/boxes?id=' + boxID);
+            if (res.status === 'ok') {
+                loadBoxes();
+            } else {
+                alert('❌ ' + res.message);
+            }
+        }
+    </script>
+</body>
+</html>

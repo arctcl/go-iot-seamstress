@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ОТК — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="flex" style="justify-content:space-between;">
+            <h1>🔍 Контроль качества (ОТК) — Приёмка</h1>
+            <button class="btn-danger" onclick="logout()">🚪 Выход</button>
+        </div>
+
+        <div class="scanner-box">
+            <label style="font-weight:600;display:block;margin-bottom:8px;">📷 Отсканируйте штрихкод коробки</label>
+            <input type="text" id="barcode" placeholder="НОМЕР-ОПЕРАЦИЯ" autofocus>
+            <div id="scanStatus" style="margin-top:8px;display:none;"></div>
+        </div>
+
+        <div id="boxInfo" style="display:none;"></div>
+
+        <div id="splitPanel" style="display:none;" class="panel">
+            <h2>✂️ Разделение коробки</h2>
+            <div style="margin:12px 0;">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">Всего в коробке: <b id="splitTotal">0</b></div>
+                <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                    <div style="flex:2;min-width:200px;">
+                        <label>✅ Годные</label>
+                        <input type="range" id="goodSlider" min="0" max="0" value="0" oninput="updateSplit()" style="width:100%;height:12px;border-radius:6px;-webkit-appearance:none;appearance:none;">
+                    </div>
+                    <div style="flex:1;min-width:80px;">
+                        <input type="number" id="goodInput" value="0" min="0" oninput="syncGoodFromInput()" style="font-size:20px;font-weight:700;color:#28a745;text-align:center;">
+                    </div>
+                    <div style="font-size:24px;color:#999;">+</div>
+                    <div style="flex:1;min-width:80px;">
+                        <input type="number" id="defectInput" value="0" min="0" oninput="syncDefectFromInput()" style="font-size:20px;font-weight:700;color:#dc3545;text-align:center;">
+                    </div>
+                    <div style="font-size:13px;color:#666;">❌ Брак</div>
+                </div>
+                <div style="margin-top:8px;font-size:13px;color:#999;" id="splitRemain">Осталось распределить: <b id="remainCount">0</b></div>
+            </div>
+
+            <!-- Маршрутник с виновными -->
+            <h3 style="margin-top:16px;">📋 Маршрутник — кто виноват</h3>
+            <table id="blameTable">
+                <thead><tr><th>Шаг</th><th>Операция</th><th>Исполнитель</th><th>Виновный (если брак)</th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+            <div class="flex mt-8">
+                <button class="btn-success" onclick="doSplit()" id="splitBtn" style="flex:1;padding:16px;font-size:18px;">✅ Принять</button>
+            </div>
+            <div id="splitResult" style="display:none;margin-top:12px;font-weight:600;text-align:center;"></div>
+            <div id="brakPrintPanel" style="display:none;margin-top:12px;text-align:center;">
+                <button class="btn-primary" onclick="printBrakBox()">🖨️ Напечатать маршрутник для брака</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script>
+        let currentBoxID = null;
+        let currentBoxData = null;
+        let lastBrakBoxID = null;
+        let ws = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkSession();
+            setupInput();
+            ws = await connectWS(msg => {
+                if (msg.type === 'scan_result') {
+                    const barcode = msg.payload.data?.ид_коробки;
+                    if (barcode) lookupBox(barcode + '-X');
+                }
+            });
+        });
+
+        function setupInput() {
+            const inp = document.getElementById('barcode');
+            inp.addEventListener('keydown', async e => {
+                if (e.key !== 'Enter') return;
+                const barcode = inp.value.trim();
+                if (!barcode) return;
+                await lookupBox(barcode);
+            });
+        }
+
+        async function lookupBox(barcode) {
+            const data = await apiGet('/api/otk/box?barcode=' + encodeURIComponent(barcode));
+            const scanStatus = document.getElementById('scanStatus');
+            const boxInfo = document.getElementById('boxInfo');
+            const splitPanel = document.getElementById('splitPanel');
+
+            if (data.status !== 'ok') {
+                scanStatus.style.display = 'block';
+                scanStatus.className = 'error';
+                scanStatus.textContent = '❌ ' + data.message;
+                boxInfo.style.display = 'none';
+                splitPanel.style.display = 'none';
+                return;
+            }
+
+            scanStatus.style.display = 'none';
+            const box = data.data;
+            currentBoxID = box.ид_коробки;
+            currentBoxData = box;
+
+            // Инфо о коробке
+            let html = `<div class="box-card ${box.статус === 'брак' ? 'error' : (box.статус === 'принята' ? 'ok' : 'warn')}">
+                <div class="title">Коробка #${box.ид_коробки} — ${box.изделие}</div>
+                <div class="meta">Количество: ${box.количество} | Статус: <span class="badge badge-${box.статус === 'брак' ? 'error' : (box.статус === 'принята' ? 'ok' : 'warn')}">${box.статус}</span></div>
+            </div>`;
+            boxInfo.innerHTML = html;
+            boxInfo.style.display = 'block';
+
+            // Инициализируем слайдер и инпуты
+            const total = box.количество;
+            document.getElementById('splitTotal').textContent = total + ' шт.';
+            const slider = document.getElementById('goodSlider');
+            slider.max = total;
+            slider.value = total;
+            document.getElementById('goodInput').value = total;
+            document.getElementById('goodInput').max = total;
+            document.getElementById('defectInput').value = 0;
+
+            displayBlameTable(box);
+            updateSplit();
+            splitPanel.style.display = 'block';
+            document.getElementById('splitResult').style.display = 'none';
+            document.getElementById('splitBtn').disabled = false;
+        }
+
+        function displayBlameTable(box) {
+            const tbody = document.querySelector('#blameTable tbody');
+            tbody.innerHTML = '';
+            const employees = box.сотрудники || [];
+            (box.операции || []).forEach(op => {
+                const tr = document.createElement('tr');
+                const executorName = op.исполнитель || '—';
+                tr.innerHTML = `<td>${op.шаг}</td><td>${op.название}</td><td>${executorName}</td>
+                    <td>
+                        <select class="blame-select" data-op="${op.ид}" style="width:100%;">
+                            <option value="">— не виноват —</option>
+                            ${employees.map(e => `<option value="${e.ид}">${e.фио}</option>`).join('')}
+                        </select>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateSplit() {
+            const slider = document.getElementById('goodSlider');
+            const total = parseInt(slider.max);
+            const good = parseInt(slider.value);
+            const defect = total - good;
+            document.getElementById('goodInput').value = good;
+            document.getElementById('defectInput').value = defect;
+            document.getElementById('remainCount').textContent = total - good - defect;
+            const pct = total > 0 ? (good / total * 100) : 100;
+            slider.style.background = `linear-gradient(to right, #28a745 ${pct}%, #dc3545 ${pct}%)`;
+        }
+
+        function syncGoodFromInput() {
+            const total = parseInt(document.getElementById('goodSlider').max);
+            const good = parseInt(document.getElementById('goodInput').value) || 0;
+            if (good > total) { document.getElementById('goodInput').value = total; return; }
+            if (good < 0) { document.getElementById('goodInput').value = 0; return; }
+            document.getElementById('goodSlider').value = good;
+            document.getElementById('defectInput').value = total - good;
+            updateSplit();
+        }
+
+        function syncDefectFromInput() {
+            const total = parseInt(document.getElementById('goodSlider').max);
+            const defect = parseInt(document.getElementById('defectInput').value) || 0;
+            if (defect > total) { document.getElementById('defectInput').value = total; return; }
+            if (defect < 0) { document.getElementById('defectInput').value = 0; return; }
+            document.getElementById('goodSlider').value = total - defect;
+            document.getElementById('goodInput').value = total - defect;
+            updateSplit();
+        }
+
+        async function doSplit() {
+            if (!currentBoxID) return;
+            const good = parseInt(document.getElementById('goodInput').value) || 0;
+            const defect = parseInt(document.getElementById('defectInput').value) || 0;
+            if (good + defect === 0) {
+                alert('❌ Нужно указать хотя бы годные или брак');
+                return;
+            }
+            const blame = {};
+            document.querySelectorAll('.blame-select').forEach(sel => {
+                const val = sel.value;
+                if (val) blame[sel.dataset.op] = parseInt(val);
+            });
+
+            const res = await apiPost('/api/otk/split', {
+                ид_коробки: currentBoxID,
+                годные: good,
+                брак: defect,
+                виновные: Object.keys(blame).length > 0 ? blame : undefined
+            });
+
+            const resultEl = document.getElementById('splitResult');
+            resultEl.style.display = 'block';
+            if (res.status === 'ok') {
+                resultEl.className = 'success';
+                resultEl.textContent = '✅ ' + res.message;
+                document.getElementById('splitBtn').disabled = true;
+                // Показываем кнопку печати если есть брак
+                if (defect > 0 && res.data && res.data.брак_коробка) {
+                    lastBrakBoxID = res.data.брак_коробка;
+                    document.getElementById('brakPrintPanel').style.display = 'block';
+                }
+                document.getElementById('barcode').value = '';
+                document.getElementById('barcode').focus();
+            } else {
+                resultEl.className = 'error';
+                resultEl.textContent = '❌ ' + res.message;
+            }
+        }
+
+        function printBrakBox() {
+            window.open('/print?id=BRAK#' + lastBrakBoxID, '_blank');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);">
+    <div class="container" style="max-width:400px;">
+        <div class="panel text-center">
+            <h1 style="margin-bottom:8px;">🧵 TurboPlata</h1>
+            <p style="color:#666;margin-bottom:20px;">Система учёта выработки</p>
+            <div class="form-group">
+                <label for="barcode">Отсканируйте табельный номер</label>
+                <input type="text" id="barcode" placeholder="USER_100 или VYDACHA_001" autofocus
+                       style="text-align:center;font-size:20px;letter-spacing:2px;">
+            </div>
+            <button class="btn-primary" onclick="doLogin()" style="width:100%;padding:14px;font-size:16px;">🔑 Войти</button>
+            <div id="status" style="display:none;margin-top:12px;font-weight:600;"></div>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script>
+        document.getElementById('barcode').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+        async function doLogin() {
+            const barcode = document.getElementById('barcode').value.trim();
+            if (!barcode) return;
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            status.className = '';
+            status.textContent = '⏳ Проверка...';
+
+            const data = await apiPost('/api/login', { barcode });
+            if (data.status === 'ok') {
+                window.location.href = data.data.redirect;
+            } else {
+                status.className = 'error';
+                status.textContent = '❌ ' + data.message;
+                document.getElementById('barcode').value = '';
+                document.getElementById('barcode').focus();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="flex" style="justify-content:space-between;">
+            <h1>📊 Статистика производства</h1>
+            <button class="btn-danger" onclick="logout()">🚪 Выход</button>
+        </div>
+
+        <!-- Панель фильтров -->
+        <div class="panel">
+            <h2>🔍 Фильтры</h2>
+            <div class="flex mb-8" style="flex-wrap:wrap;">
+                <div style="flex:1;min-width:140px;">
+                    <label style="font-size:12px;">От</label>
+                    <input type="date" id="filterFrom" style="font-size:14px;padding:8px;">
+                </div>
+                <div style="flex:1;min-width:140px;">
+                    <label style="font-size:12px;">До</label>
+                    <input type="date" id="filterTo" style="font-size:14px;padding:8px;">
+                </div>
+                <div style="flex:1;min-width:140px;">
+                    <label style="font-size:12px;">Заказ</label>
+                    <select id="filterOrder" style="font-size:14px;padding:8px;">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div style="flex:1;min-width:140px;">
+                    <label style="font-size:12px;">Рабочий</label>
+                    <select id="filterWorker" style="font-size:14px;padding:8px;">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div style="flex:1;min-width:140px;">
+                    <label style="font-size:12px;">Операция</label>
+                    <input type="text" id="filterOp" placeholder="Например: шов" style="font-size:14px;padding:8px;">
+                </div>
+            </div>
+            <div class="flex">
+                <button class="btn-primary" onclick="loadData()">🔍 Показать</button>
+                <button class="btn-success" onclick="exportCSV()" style="margin-left:8px;">📥 CSV</button>
+            </div>
+        </div>
+
+        <!-- Переключатель режимов -->
+        <div class="panel">
+            <div class="flex" style="gap:0;">
+                <button class="btn-primary" id="modeLogBtn" onclick="switchMode('log')" style="border-radius:6px 0 0 6px;flex:1;">📋 Пооперационный лог</button>
+                <button class="btn-sm" id="modeSpeedBtn" onclick="switchMode('speed')" style="border-radius:0 6px 6px 0;flex:1;background:#e0e0e0;color:#333;">⚡ Скорости швей</button>
+            </div>
+        </div>
+
+        <!-- Режим: Пооперационный лог -->
+        <div id="modeLog" class="panel">
+            <h2>📋 Пооперационный лог</h2>
+            <div style="overflow-x:auto;">
+                <table id="logTable">
+                    <thead id="logHead"></thead>
+                    <tbody id="logBody"></tbody>
+                </table>
+            </div>
+            <div id="logEmpty" style="display:none;text-align:center;padding:40px;color:#999;">Нет данных за выбранный период</div>
+            <div id="logCount" style="font-size:12px;color:#999;margin-top:8px;"></div>
+        </div>
+
+        <!-- Режим: Скорости швей -->
+        <div id="modeSpeed" class="panel" style="display:none;">
+            <h2>⚡ Скорости швей</h2>
+            <div id="speedWorkerCards"></div>
+
+            <h3 style="margin-top:24px;">📈 График</h3>
+            <div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;">
+                <div style="flex:1;min-width:200px;">
+                    <select id="chartWorker" style="font-size:14px;padding:8px;"></select>
+                </div>
+                <button class="btn-primary" onclick="buildChart()">📊 Построить график</button>
+            </div>
+            <div style="position:relative;height:400px;">
+                <canvas id="speedChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script>
+        let currentUser = null;
+        let currentMode = 'log';
+        let logData = [];
+        let speedData = [];
+        let chartInstance = null;
+
+        // Фильтры для колонок
+        let columnFilters = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await checkSession();
+            if (!currentUser || (currentUser.роль !== 'admin' && currentUser.роль !== 'master')) {
+                window.location.href = '/login';
+                return;
+            }
+            // Устанавливаем даты по умолчанию — сегодня
+            const today = new Date().toISOString().slice(0,10);
+            document.getElementById('filterFrom').value = today;
+            document.getElementById('filterTo').value = today;
+            await loadFilters();
+            loadData();
+        });
+
+        async function loadFilters() {
+            const data = await apiGet('/api/stat/filters');
+            if (data.status !== 'ok' || !data.data) return;
+            const orderSel = document.getElementById('filterOrder');
+            const workerSel = document.getElementById('filterWorker');
+            const chartWorkerSel = document.getElementById('chartWorker');
+
+            (data.data.заказы || []).forEach(o => {
+                orderSel.innerHTML += `<option value="${o.ид}">#${o.ид} — ${o.название}</option>`;
+            });
+            (data.data.рабочие || []).forEach(w => {
+                workerSel.innerHTML += `<option value="${w.ид}">${w.фио}</option>`;
+                chartWorkerSel.innerHTML += `<option value="${w.ид}">${w.фио}</option>`;
+            });
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('modeLog').style.display = mode === 'log' ? 'block' : 'none';
+            document.getElementById('modeSpeed').style.display = mode === 'speed' ? 'block' : 'none';
+            document.getElementById('modeLogBtn').style.background = mode === 'log' ? '#4a6cf7' : '#e0e0e0';
+            document.getElementById('modeLogBtn').style.color = mode === 'log' ? '#fff' : '#333';
+            document.getElementById('modeSpeedBtn').style.background = mode === 'speed' ? '#4a6cf7' : '#e0e0e0';
+            document.getElementById('modeSpeedBtn').style.color = mode === 'speed' ? '#fff' : '#333';
+            if (mode === 'speed') loadData();
+        }
+
+        async function loadData() {
+            const from = document.getElementById('filterFrom').value;
+            const to = document.getElementById('filterTo').value;
+            const orderID = document.getElementById('filterOrder').value;
+            const workerID = document.getElementById('filterWorker').value;
+            const op = document.getElementById('filterOp').value;
+
+            const params = `from=${from}&to=${to}&order_id=${orderID}&worker_id=${workerID}&operation=${encodeURIComponent(op)}`;
+
+            if (currentMode === 'log') {
+                const res = await apiGet('/api/stat/log?' + params);
+                logData = res.data || [];
+                renderLog();
+            } else {
+                const res = await apiGet('/api/stat/speed?' + params);
+                speedData = res.data || [];
+                renderSpeed();
+                // Заполняем селект графика
+                const chartSel = document.getElementById('chartWorker');
+                chartSel.innerHTML = '<option value="">Выберите швею</option>';
+                speedData.forEach(w => {
+                    chartSel.innerHTML += `<option value="${w.ид}">${w.фио}</option>`;
+                });
+            }
+        }
+
+        // ---- Лог ----
+        function renderLog() {
+            const thead = document.getElementById('logHead');
+            const tbody = document.getElementById('logBody');
+            const empty = document.getElementById('logEmpty');
+            const count = document.getElementById('logCount');
+
+            if (logData.length === 0) {
+                thead.innerHTML = '';
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                count.textContent = '';
+                return;
+            }
+            empty.style.display = 'none';
+            count.textContent = `Всего записей: ${logData.length}`;
+
+            // Строим заголовки с фильтрами
+            const columns = [
+                { key: 'ид', label: '#' },
+                { key: 'ид_коробки', label: 'Коробка' },
+                { key: 'ид_заказа', label: 'Заказ' },
+                { key: 'изделие', label: 'Изделие' },
+                { key: 'шаг', label: 'Шаг' },
+                { key: 'операция', label: 'Операция' },
+                { key: 'норма_сек', label: 'Норма,с' },
+                { key: 'рабочий', label: 'Рабочий' },
+                { key: 'время_начала', label: 'Начало' },
+                { key: 'время_окончания', label: 'Конец' },
+                { key: 'факт_сек', label: 'Факт,с' },
+                { key: 'скорость_процент', label: 'Скорость%' },
+                { key: 'начислено', label: 'Начислено,₽' },
+                { key: 'брак', label: 'Брак' },
+                { key: 'статус_коробки', label: 'Статус' },
+            ];
+
+            thead.innerHTML = '<tr>' + columns.map(c => {
+                const val = columnFilters[c.key] || '';
+                return `<th>
+                    <div style="font-size:11px;font-weight:400;margin-bottom:4px;">${c.label}</div>
+                    <input type="text" class="col-filter" data-key="${c.key}" value="${val}"
+                        placeholder="🔍" style="width:100%;padding:4px;font-size:11px;box-sizing:border-box;"
+                        oninput="applyColumnFilters()">
+                </th>`;
+            }).join('') + '</tr>';
+
+            applyColumnFilters();
+        }
+
+        function applyColumnFilters() {
+            // Собираем фильтры
+            document.querySelectorAll('.col-filter').forEach(inp => {
+                columnFilters[inp.dataset.key] = inp.value.toLowerCase();
+            });
+
+            const tbody = document.getElementById('logBody');
+            const filtered = logData.filter(row => {
+                return Object.keys(columnFilters).every(key => {
+                    const filter = columnFilters[key];
+                    if (!filter) return true;
+                    const val = String(row[key] ?? '').toLowerCase();
+                    return val.includes(filter);
+                });
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;color:#999;">Нет совпадений</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(row => {
+                const speed = row.скорость_процент || 0;
+                const speedColor = speed >= 80 ? '#28a745' : (speed >= 50 ? '#ffc107' : '#dc3545');
+                const brakBadge = row.брак ? '❌' : '✅';
+                return `<tr>
+                    <td>${row.ид}</td>
+                    <td>#${row.ид_коробки}</td>
+                    <td>#${row.ид_заказа}</td>
+                    <td>${row.изделие || '-'}</td>
+                    <td>${row.шаг}</td>
+                    <td>${row.операция}</td>
+                    <td>${row.норма_сек || 0}</td>
+                    <td>${row.рабочий || '-'}</td>
+                    <td>${row.время_начала ? row.время_начала.slice(11,19) : '-'}</td>
+                    <td>${row.время_окончания ? row.время_окончания.slice(11,19) : '-'}</td>
+                    <td>${(row.факт_сек || 0).toFixed(0)}</td>
+                    <td style="color:${speedColor};font-weight:600;">${speed.toFixed(1)}%</td>
+                    <td><b>${(row.начислено || 0).toFixed(2)}</b></td>
+                    <td>${brakBadge}</td>
+                    <td><span class="badge badge-${row.статус_коробки === 'принята' ? 'ok' : (row.статус_коробки === 'брак' ? 'error' : 'warn')}">${row.статус_коробки || '-'}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ---- Скорости ----
+        function renderSpeed() {
+            const container = document.getElementById('speedWorkerCards');
+            if (speedData.length === 0) {
+                container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">Нет данных</p>';
+                return;
+            }
+            container.innerHTML = speedData.map(w => {
+                const speedColor = w.средняя_скорость >= 80 ? '#28a745' : (w.средняя_скорость >= 50 ? '#ffc107' : '#dc3545');
+                return `<div class="box-card" style="margin:8px 0;">
+                    <div class="flex" style="justify-content:space-between;">
+                        <div class="title">${w.фио}</div>
+                        <div style="text-align:right;">
+                            <span style="font-size:20px;font-weight:700;color:${speedColor};">${(w.средняя_скорость || 0).toFixed(1)}%</span>
+                            <span style="font-size:12px;color:#999;"> ср.скорость</span>
+                        </div>
+                    </div>
+                    <div class="meta">Операций: ${w.операций} | Заработано: <b>${(w.итого || 0).toFixed(2)} ₽</b></div>
+                </div>`;
+            }).join('');
+        }
+
+        // ---- График ----
+        async function buildChart() {
+            const workerID = document.getElementById('chartWorker').value;
+            if (!workerID) return;
+            const from = document.getElementById('filterFrom').value;
+            const to = document.getElementById('filterTo').value;
+            const orderID = document.getElementById('filterOrder').value;
+            const op = document.getElementById('filterOp').value;
+
+            const params = `from=${from}&to=${to}&worker_id=${workerID}&order_id=${orderID}&operation=${encodeURIComponent(op)}`;
+            const res = await apiGet('/api/stat/speed?' + params);
+            if (res.status !== 'ok' || !res.data || res.data.length === 0) return;
+            const worker = res.data[0];
+            const points = worker.точки || [];
+
+            if (chartInstance) chartInstance.destroy();
+
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: points.map((p, i) => `#${i+1}`),
+                    datasets: [{
+                        label: 'Скорость % (' + worker.фио + ')',
+                        data: points.map(p => p.скорость_процент),
+                        borderColor: '#4a6cf7',
+                        backgroundColor: 'rgba(74,108,247,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: points.map(p => p.скорость_процент >= 80 ? '#28a745' : '#dc3545'),
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const idx = context.dataIndex;
+                                    const p = points[idx];
+                                    if (!p) return '';
+                                    return `Операция: ${p.операция}\nНорма: ${p.норма_сек}с\nФакт: ${p.факт_сек.toFixed(0)}с\nВремя: ${p.время || ''}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Скорость %' } }
+                    }
+                }
+            });
+        }
+
+        // ---- CSV экспорт ----
+        async function exportCSV() {
+            const from = document.getElementById('filterFrom').value;
+            const to = document.getElementById('filterTo').value;
+            const orderID = document.getElementById('filterOrder').value;
+            const workerID = document.getElementById('filterWorker').value;
+            const op = document.getElementById('filterOp').value;
+
+            const params = `mode=log&from=${from}&to=${to}&order_id=${orderID}&worker_id=${workerID}&operation=${encodeURIComponent(op)}`;
+            window.open('/api/stat/export?' + params, '_blank');
+        }
+    </script>
+</body>
+</html>

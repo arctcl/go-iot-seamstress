@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мастер — TurboPlata</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="flex" style="justify-content:space-between;">
+            <h1>👷 Панель мастера</h1>
+            <button class="btn-danger" onclick="logout()">🚪 Выход</button>
+        </div>
+
+        <div class="panel">
+            <h2>🔍 Просмотр коробки (как швея)</h2>
+            <div class="flex">
+                <input type="text" id="boxBarcode" placeholder="КОРОБКА-ОПЕРАЦИЯ" style="flex:2;">
+                <button class="btn-primary" onclick="showBox()">🔍 Показать</button>
+            </div>
+            <div id="boxDetails" style="margin-top:12px;"></div>
+        </div>
+
+        <div class="panel">
+            <h2>⚠️ Брак</h2>
+            <div id="defectBoxes"></div>
+        </div>
+
+        <!-- Инструменты мастера -->
+        <div class="panel" style="border-left:4px solid #fd7e14;">
+            <h2>🛠️ Инструменты мастера</h2>
+            <div class="flex mb-8">
+                <button class="btn-primary" onclick="forceDoneBox()">⚡ Force DONE</button>
+                <button class="btn-primary" onclick="reassignOperation()" style="margin-left:8px;">🔄 Сменить исполнителя</button>
+            </div>
+        </div>
+
+        <!-- Выработка за сегодня -->
+        <div class="panel">
+            <h2>💰 Выработка за сегодня</h2>
+            <div class="flex mb-8">
+                <input type="date" id="prodDate" value="" style="max-width:200px;">
+                <button class="btn-primary" onclick="loadProduction()">🔍 Показать</button>
+                <span style="margin-left:12px;font-size:13px;color:#999;">Скорость: <button class="btn-sm" onclick="sortProd('speed_asc')">⬆</button> <button class="btn-sm" onclick="sortProd('speed_desc')">⬇</button></span>
+            </div>
+            <table id="prodTable">
+                <thead><tr><th>Сотрудник</th><th>Операций</th><th>Заработано</th><th>Средняя скорость</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Скорости онлайн -->
+        <div class="panel">
+            <h2>⚡ Скорости швей онлайн <span style="font-size:12px;font-weight:400;color:#999;">(после каждой операции)</span></h2>
+            <div class="flex mb-8">
+                <span style="font-size:13px;color:#999;">Сортировка: <button class="btn-sm" onclick="sortLiveSpeed('asc')">⬆</button> <button class="btn-sm" onclick="sortLiveSpeed('desc')">⬇</button></span>
+            </div>
+            <table id="liveSpeedTable">
+                <thead><tr><th>Сотрудник</th><th>Скорость %</th><th>Операция</th><th>Заказ</th><th>Коробка</th><th>Кол-во</th><th>Норма/Факт (1 шт.)</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script>
+        let currentUser = null;
+        let editingTechcardID = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await checkSession();
+            loadOrders();
+            loadDefectBoxes();
+            loadProduction();
+            loadLiveSpeed();
+            // Автообновление каждые 3 секунды
+            setInterval(() => { loadDefectBoxes(); loadLiveSpeed(); }, 3000);
+            setInterval(() => { loadProduction(); loadOrders(); }, 10000);
+        });
+
+        async function loadOrders() {
+            const data = await apiGet('/api/orders');
+            const tbody = document.querySelector('#ordersTable tbody');
+            tbody.innerHTML = '';
+            if (!data.data) return;
+            data.data.forEach(o => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${o.ид}</td><td>${o.название}</td><td>${o.количество_план}</td>
+                    <td><button class="btn-primary" onclick="viewTechcard(${o.ид})">📄 Техкарта</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function viewTechcard(orderID) {
+            editingTechcardID = orderID;
+            const ordersData = await apiGet('/api/orders');
+            let orderName = '#' + orderID;
+            if (ordersData.data) {
+                const found = ordersData.data.find(o => o.ид === orderID);
+                if (found) orderName = found.название + ' (#' + orderID + ')';
+            }
+            document.getElementById('tcOrderID').textContent = orderName;
+            document.getElementById('techcardPanel').style.display = 'block';
+            const data = await apiGet('/api/techcards?ид_заказа=' + orderID);
+            const tbody = document.querySelector('#techcardTable tbody');
+            tbody.innerHTML = '';
+            if (!data.data) return;
+            data.data.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${s.шаг}</td><td>${s.название_операции}</td><td>${s.норма_времени_сек}</td><td>${s.разряд}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function showBox() {
+            const barcode = document.getElementById('boxBarcode').value.trim();
+            if (!barcode) return;
+            const data = await apiGet('/api/otk/box?barcode=' + encodeURIComponent(barcode));
+            const el = document.getElementById('boxDetails');
+            if (data.status !== 'ok') {
+                el.innerHTML = '<div class="error">❌ ' + data.message + '</div>';
+                return;
+            }
+            const box = data.data;
+            let html = `<div class="box-card"><div class="title">Коробка #${box.ид_коробки} — ${box.изделие}</div>
+                <div class="meta">Количество: ${box.количество} | Статус: <span class="badge badge-${box.статус === 'брак' ? 'error' : (box.статус === 'принята' ? 'ok' : 'warn')}">${box.статус}</span></div>
+                <table><thead><tr><th>Шаг</th><th>Операция</th><th>Статус</th><th>Исполнитель</th><th>Норма</th></tr></thead><tbody>`;
+            (box.операции || []).forEach(op => {
+                html += `<tr><td>${op.шаг}</td><td>${op.название}</td><td>${op.статус}</td><td>${op.исполнитель || '-'}</td><td>${op.норма_сек}с</td></tr>`;
+            });
+            html += `</tbody></table>`;
+            // Кнопки для коробок в браке
+            if (box.статус === 'брак') {
+                html += `<div class="flex mt-8"><button class="btn-success" onclick="masterApprove(${box.ид_коробки})">✅ Принять после исправления</button></div>`;
+            }
+            html += `</div>`;
+            el.innerHTML = html;
+        }
+
+        async function masterApprove(boxID) {
+            const res = await apiPost('/api/master/approve', { ид_коробки: boxID });
+            alert(res.status === 'ok' ? '✅ Коробка принята' : '❌ ' + res.message);
+            if (res.status === 'ok') showBox();
+        }
+
+        async function loadDefectBoxes() {
+            // Список коробок в браке
+            const data = await apiGet('/api/boxes?status=брак');
+            const el = document.getElementById('defectBoxes');
+            if (!data.data || data.data.length === 0) {
+                el.innerHTML = '<p style="color:#999;">Нет коробок в браке</p>';
+                return;
+            }
+            let html = '<table><thead><tr><th>#</th><th>Изделие</th><th>Кол-во</th><th>Действие</th></tr></thead><tbody>';
+            data.data.forEach(b => {
+                html += `<tr><td>#${b.ид}</td><td>${b.изделие}</td><td>${b.количество}</td>
+                    <td><button class="btn-success" onclick="masterApprove(${b.ид})">✅ Принять</button></td></tr>`;
+            });
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        // --- Выработка за сегодня ---
+        let prodData = [];
+
+        async function loadProduction() {
+            const date = document.getElementById('prodDate').value || new Date().toISOString().slice(0,10);
+            document.getElementById('prodDate').value = date;
+            const data = await apiGet('/api/production?date=' + date);
+            prodData = data.data || [];
+            renderProdTable();
+        }
+
+        function renderProdTable() {
+            const tbody = document.querySelector('#prodTable tbody');
+            tbody.innerHTML = '';
+            if (prodData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">Нет данных</td></tr>';
+                return;
+            }
+            prodData.forEach(w => {
+                const tr = document.createElement('tr');
+                const speedColor = w.средняя_скорость >= 80 ? '#28a745' : (w.средняя_скорость >= 50 ? '#ffc107' : '#dc3545');
+                tr.innerHTML = `<td><b>${w.фио}</b></td><td>${w.операций}</td>
+                    <td><b>${(w.итого||0).toFixed(2)} ₽</b></td>
+                    <td style="color:${speedColor};font-weight:600;">${(w.средняя_скорость||0).toFixed(1)}%</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function sortProd(dir) {
+            prodData.sort((a,b) => dir === 'speed_asc' ? (a.средняя_скорость||0) - (b.средняя_скорость||0) : (b.средняя_скорость||0) - (a.средняя_скорость||0));
+            renderProdTable();
+        }
+
+        // --- Live Speed ---
+        let liveSpeedData = [];
+
+        async function loadLiveSpeed() {
+            const data = await apiGet('/api/live-speed');
+            liveSpeedData = data.data || [];
+            renderLiveSpeed();
+        }
+
+        function renderLiveSpeed() {
+            const tbody = document.querySelector('#liveSpeedTable tbody');
+            tbody.innerHTML = '';
+            if (liveSpeedData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;">Нет операций за сегодня</td></tr>';
+                return;
+            }
+            liveSpeedData.forEach(s => {
+                const tr = document.createElement('tr');
+                const color = s.скорость_процент >= 80 ? '#28a745' : (s.скорость_процент >= 50 ? '#ffc107' : '#dc3545');
+                tr.innerHTML = `<td><b>${s.фио}</b></td>
+                    <td style="color:${color};font-weight:700;">${s.скорость_процент.toFixed(1)}%</td>
+                    <td>${s.операция}</td>
+                    <td>${s.заказ || '-'}</td>
+                    <td>#${s.ид_коробки}</td>
+                    <td>${s.количество || 1}</td>
+                    <td>${s.норма_на_единицу}с / ${(s.факт_на_единицу || 0).toFixed(1)}с</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function sortLiveSpeed(dir) {
+            liveSpeedData.sort((a,b) => dir === 'asc' ? (a.скорость_процент||0) - (b.скорость_процент||0) : (b.скорость_процент||0) - (a.скорость_процент||0));
+            renderLiveSpeed();
+        }
+
+        // --- Force DONE (мастер) ---
+        async function forceDoneBox() {
+            const boxID = prompt('ID коробки для принудительного завершения:');
+            if (!boxID) return;
+            const opID = prompt('ID операции (пусто — первая незавершённая):');
+            const res = await apiPost('/api/admin/force-done', { ид_коробки: parseInt(boxID), ид_операции: opID ? parseInt(opID) : 0 });
+            alert(res.status === 'ok' ? '✅ ' + res.message : '❌ ' + res.message);
+            if (res.status === 'ok') { loadDefectBoxes(); loadLiveSpeed(); }
+        }
+
+        // --- Reassign ---
+        async function reassignOperation() {
+            const opID = prompt('ID операции:');
+            if (!opID) return;
+            const workerID = prompt('ID нового исполнителя:');
+            if (!workerID) return;
+            const res = await apiPut('/api/operations/reassign', { ид_операции: parseInt(opID), ид_рабочего: parseInt(workerID) });
+            alert(res.status === 'ok' ? '✅ ' + res.message : '❌ ' + res.message);
+        }
+    </script>
+</body>
+</html>
